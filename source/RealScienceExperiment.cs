@@ -51,7 +51,7 @@ namespace RealScience
             return string.Format("{0:D}", (int)currentState);
         }
 
-        public static ExperimentState FromStrimg(string stateString)
+        public static ExperimentState FromString(string stateString)
         {
             ExperimentState newState = new ExperimentState();
             StateEnum state = (StateEnum)int.Parse(stateString);
@@ -67,8 +67,8 @@ namespace RealScience
         public string experimentName;
         [KSPField(isPersistant = false)]
         public string experimentTitle;
-        [KSPField(isPersistant = false)]
-        public string description;
+		[KSPField(isPersistant = false)]
+		public string description;
         [KSPField(isPersistant = false)]
         public string discipline = "science";
         [KSPField(isPersistant = false)]
@@ -158,34 +158,53 @@ namespace RealScience
 
         public override void Start()
         {
+			LogFormatted_DebugOnly("Starting RealScienceExperiment...");
+
             // We need to re-load our data from the prefab
             Part prefab = this.part.partInfo.partPrefab;
-            foreach (PartModule pm in prefab.Modules)
-            {
-                RealScienceExperiment modulePrefab = pm as RealScienceExperiment;
-                if (modulePrefab != null)
-                {
-                    experimentName = modulePrefab.experimentName;
-                    experimentTitle = modulePrefab.experimentTitle;
-                    description = modulePrefab.description;
-                    discipline = modulePrefab.discipline;
-                    requiredData = modulePrefab.requiredData;
-                    maximumData = modulePrefab.maximumData;
-                    analysisTime = modulePrefab.analysisTime;
-                    scienceValue = modulePrefab.scienceValue;
-                    scienceValuePerData = modulePrefab.scienceValuePerData;
-                    researchDataRate = modulePrefab.researchDataRate;
-                    multiFlight = modulePrefab.multiFlight;
-                    autoAnalyze = modulePrefab.autoAnalyze;
-                    autoTransmit = modulePrefab.autoTransmit;
-                    dataSize = modulePrefab.dataSize;
-                    dataPerPacket = modulePrefab.dataPerPacket;
-                    canFailAtAnyTime = modulePrefab.canFailAtAnyTime;
-                    transmitValue = modulePrefab.transmitValue;
-                    conditions = modulePrefab.conditions;
-                    conditionGroups = modulePrefab.conditionGroups;
-                }
-            }
+
+			RealScienceExperiment modulePrefab = prefab.FindModulesImplementing<RealScienceExperiment>().FirstOrDefault(m => m.experimentName == experimentName);
+
+			if (modulePrefab != null && !HighLogic.LoadedSceneIsEditor)
+			{
+				LogFormatted_DebugOnly("Why Are We Starting This Way..");
+				experimentName = modulePrefab.experimentName;
+				experimentTitle = modulePrefab.experimentTitle;
+				description = modulePrefab.description;
+				discipline = modulePrefab.discipline;
+				requiredData = modulePrefab.requiredData;
+				maximumData = modulePrefab.maximumData;
+				analysisTime = modulePrefab.analysisTime;
+				scienceValue = modulePrefab.scienceValue;
+				scienceValuePerData = modulePrefab.scienceValuePerData;
+				researchDataRate = modulePrefab.researchDataRate;
+				multiFlight = modulePrefab.multiFlight;
+				autoAnalyze = modulePrefab.autoAnalyze;
+				autoTransmit = modulePrefab.autoTransmit;
+				dataSize = modulePrefab.dataSize;
+				dataPerPacket = modulePrefab.dataPerPacket;
+				canFailAtAnyTime = modulePrefab.canFailAtAnyTime;
+				transmitValue = modulePrefab.transmitValue;
+				conditions = modulePrefab.conditions;
+				conditionGroups = modulePrefab.conditionGroups;
+
+				if (conditions != null)
+					LogFormatted_DebugOnly("Does this even work for lists: {0} conditions", conditions.Count);
+				if (conditionGroups != null)
+				{
+					LogFormatted_DebugOnly("Does this work for groups: {0} groups", conditionGroups.Count);
+					if (conditionGroups[0].conditions != null)
+					{
+						for (int i = 0; i < conditionGroups[0].conditions.Count; i++)
+						{
+							IScienceCondition cond = conditionGroups[0].conditions[i];
+							LogFormatted_DebugOnly("Condition {0}: Type {1}", i, cond.Name);
+							LogFormatted_DebugOnly("Condition Modifier: {0:F2}", cond.DataRateModifier);
+						}
+					}
+				}
+			}
+
             // In case OnLoad never happened, we need to properly intialize our values
             if (!loaded)
             {
@@ -198,24 +217,25 @@ namespace RealScience
                 GameEvents.onVesselSituationChange.Add(OnVesselSituationChange);
         }
 
-        protected void OnVesselSituationChange(GameEvents.HostedFromToAction<Vessel, Vessel.Situations> vs)
-        {
-            if (vs.to == Vessel.Situations.LANDED || vs.to == Vessel.Situations.SPLASHED)
-            {
-                if (vs.from == Vessel.Situations.FLYING)
-                {
-                    if (vs.host.mainBody.isHomeWorld)
-                    {
-                        if (state.CurrentState != ExperimentState.StateEnum.FAILED)
-                        {
-                            ResearchAndDevelopment.Instance.AddScience(recoveryValue, TransactionReasons.ScienceTransmission);
-                            ScreenMessage statusMessage = new ScreenMessage(String.Format("[{0}] Experiment Recovered.", experimentTitle), 5.0f, ScreenMessageStyle.UPPER_LEFT);
-                            ScreenMessages.PostScreenMessage(statusMessage, true);
-                        }
-                    }
-                }
-            }
-        }
+		protected void OnVesselSituationChange(GameEvents.HostedFromToAction<Vessel, Vessel.Situations> vs)
+		{
+			if (vs.from != Vessel.Situations.FLYING)
+				return;
+
+			if (vs.to != Vessel.Situations.LANDED && vs.to != Vessel.Situations.SPLASHED)
+				return;
+
+			if (!vs.host.mainBody.isHomeWorld)
+				return;
+
+			if (state.CurrentState == ExperimentState.StateEnum.FAILED)
+				return;
+
+			ResearchAndDevelopment.Instance.AddScience(recoveryValue, TransactionReasons.ScienceTransmission);
+			ScreenMessage statusMessage = new ScreenMessage(String.Format("[{0}] Experiment Recovered.", experimentTitle), 5.0f, ScreenMessageStyle.UPPER_LEFT);
+			ScreenMessages.PostScreenMessage(statusMessage, true);
+
+		}
 
         protected void SelectAntenna()
         {
@@ -251,7 +271,6 @@ namespace RealScience
 
         public override void OnUpdate()
         {
-            base.OnUpdate();
             float currentMET = (float)this.vessel.missionTime;
             float deltaTime = currentMET - lastMET;
             EvalState eval = ValidateConditions(deltaTime);
@@ -299,18 +318,14 @@ namespace RealScience
                     if (chosenTransmitter.IsBusy())
                         break;
                     // Shouldn't be needed, but as a last safety measure we find all experiments on the craft and check that none are transmitting
-                    foreach(Part vPart in this.vessel.Parts)
-                    {
-                        foreach(PartModule pm in vPart.Modules)
-                        {
-                            RealScienceExperiment vExperiment = pm as RealScienceExperiment;
-                            if (vExperiment != null)
-                            {
-                                if (vExperiment.state.CurrentState == ExperimentState.StateEnum.TRANSMITTING)
-                                    break;
-                            }
-                        }
-                    }
+					foreach (Part vPart in this.vessel.Parts.Where(p => p.Modules.Contains("RealScienceExperiment")))
+					{
+						foreach (RealScienceExperiment pm in vPart.FindModulesImplementing<RealScienceExperiment>())
+						{
+							if (pm.state.CurrentState == ExperimentState.StateEnum.TRANSMITTING)
+								break;
+						}
+					}
                     transmissionDataRate = chosenTransmitter.DataRate;
                     transmissionDataResourceCost = (float)chosenTransmitter.DataResourceCost;
                     transmittedPackets = 0f;
@@ -564,10 +579,11 @@ namespace RealScience
 
         public override void OnLoad(ConfigNode node)
         {
-            base.OnLoad(node);
+			LogFormatted_DebugOnly("Loading RealScience Experiment...");
+
             if (node.HasValue("state"))
             {
-                state = ExperimentState.FromStrimg(node.GetValue("state"));
+                state = ExperimentState.FromString(node.GetValue("state"));
             }
             else
             {
@@ -619,6 +635,7 @@ namespace RealScience
             // otherwise load groups
             else if (node.HasNode("conditionGroup"))
             {
+				LogFormatted_DebugOnly("Loading RealScience Condition Group...");
                 if (conditionGroups == null)
                     conditionGroups = new List<RealScienceConditionGroup>();
                 conditionGroups.Clear();
@@ -631,6 +648,11 @@ namespace RealScience
             }
             loaded = true;
         }
+
+		public override void OnSave(ConfigNode node)
+		{
+
+		}
     }
 
     public class RealScienceConditionGroup : IConfigNode
@@ -638,7 +660,7 @@ namespace RealScience
         [KSPField(isPersistant = false)]
         public string groupType = "or";
 
-        protected List<IScienceCondition> conditions;
+        public List<IScienceCondition> conditions;
         protected float dataRateModifier = 1f;
         protected float maximumDataModifier = 1f;
         protected float maximumDataBonus = 0f;
@@ -722,11 +744,12 @@ namespace RealScience
 
         public void Load(ConfigNode node)
         {
+			MonoBehaviourExtended.LogFormatted_DebugOnly("Loading Condition Group...");
             if (node.HasNode("groupType"))
                 groupType = node.GetValue("groupType");
             if (node.HasNode("condition"))
             {
-                Debug.Log("RealScience: OnLoad: Loading conditions...");
+                MonoBehaviourExtended.LogFormatted_DebugOnly("RealScience: OnLoad: Loading conditions...");
                 if (conditions == null)
                     conditions = new List<IScienceCondition>();
                 conditions.Clear();
@@ -740,7 +763,7 @@ namespace RealScience
                         System.Runtime.Remoting.ObjectHandle conditionObj = null;
                         conditionObj = Activator.CreateInstance(null, "RealScience.Conditions.RealScienceCondition_" + conditionType);
                         if (conditionObj == null)
-                            Debug.Log("RealScience: OnLoad: Failed to create Condition ObjectHandle");
+							MonoBehaviourExtended.LogFormatted_DebugOnly("RealScience: OnLoad: Failed to create Condition ObjectHandle");
                         else
                             newCondition = (RealScienceCondition)conditionObj.Unwrap();
 
@@ -750,9 +773,11 @@ namespace RealScience
                 }
             }
         }
-        public void Save(ConfigNode node)
-        {
 
-        }
+		public void Save(ConfigNode node)
+		{
+
+		}
+
     }
 }
