@@ -139,15 +139,15 @@ namespace KSPPluginFramework
 
         internal DropDownListManager ddlManager = new DropDownListManager();
 
-        internal override void DrawWindowPre(int id)
+		protected override void DrawWindowPre(int id)
         {
             ddlManager.DrawBlockingSelectors();
         }
-        internal override void DrawWindowPost(int id)
+		protected override void DrawWindowPost(int id)
         {
             ddlManager.DrawDropDownLists();
         }
-        internal override void OnGUIEvery()
+		protected override void OnGUIEvery()
         {
             ddlManager.CloseOnOutsideClicks();
         }

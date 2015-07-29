@@ -168,7 +168,7 @@ namespace KSPPluginFramework
         /// 
         /// No Need to run the base RepeatingWorker
         /// </summary>
-        internal virtual void RepeatingWorker()
+		protected virtual void RepeatingWorker()
         {
             //LogFormatted_DebugOnly("WorkerBase");
 
@@ -389,7 +389,7 @@ namespace KSPPluginFramework
         ///          Code here ignores the F2 key that disables user interface. So if you are making something to be user hidable then use the RenderingManager.PostDrawQueue functions in here
         ///          Alternatively you could use the MonoBehaviourWindow Type and its DrawWindow Function
         /// </summary>
-        internal virtual void OnGUIEvery()
+		protected virtual void OnGUIEvery()
         {
 
         }
@@ -399,7 +399,7 @@ namespace KSPPluginFramework
         /// 
         /// Added this so you can put your GUI initialisation code in here. Running GUI initialisation stuff in Awake/Start will throw an error
         /// </summary>
-        internal virtual void OnGUIOnceOnly()
+		protected virtual void OnGUIOnceOnly()
         {
             LogFormatted_DebugOnly("Running OnGUI OnceOnly Code");
 
